@@ -1,0 +1,126 @@
+PROJECT_DIR := $(CURDIR)
+PORT ?= /host-dev/serial/by-id/usb-1a86_USB_Single_Serial_5C37267536-if00
+BAUD ?= 460800
+MONITOR_BAUD ?= 115200
+IDF_PY ?= idf.py
+ESPTOOL_PY ?= python -m esptool
+APP_OFFSET ?= 0x10000
+
+.PHONY: help build reconfigure fullclean clean flash app-flash bootloader-flash partition-flash erase erase-flash erase-app monitor log flash-monitor run reboot size menuconfig set-target-c3 port check-port doctor
+
+help:
+	@printf '%s\n' \
+	  'ESP32-C3 user_template 常用命令:' \
+	  '  make build          - 编译工程' \
+	  '  make flash          - 烧录整个工程' \
+	  '  make monitor        - 打开串口日志' \
+	  '  make log            - monitor 的快捷别名' \
+	  '  make flash-monitor  - 先烧录，再按正确日志波特率打开串口' \
+	  '  make run            - build + flash + monitor 一键运行' \
+	  '  make reboot         - 通过串口触发芯片复位' \
+	  '  make erase-flash    - 整片擦除 Flash' \
+	  '  make erase-app      - 仅擦除应用分区起始区域' \
+	  '  make doctor         - 检查串口、工具链、构建产物与 Flash 参数' \
+	  '  make clean          - 清理当前构建产物' \
+	  '  make fullclean      - 深度清理构建目录' \
+	  '  make menuconfig     - 打开 ESP-IDF 配置菜单' \
+	  '  make size           - 查看固件体积信息' \
+	  '  make app-flash      - 仅烧录应用分区' \
+	  '  make bootloader-flash - 仅烧录 bootloader' \
+	  '  make partition-flash  - 仅烧录分区表' \
+	  '  make reconfigure    - 重新配置工程' \
+	  '  make set-target-c3  - 显式设置芯片为 esp32c3' \
+	  '  make check-port     - 检查当前串口路径是否存在' \
+	  '  make port           - 打印当前串口配置' \
+	  '' \
+	  '退出串口日志:' \
+	  '  Ctrl+]              - 退出 idf monitor' \
+	  '' \
+	  '可覆盖变量示例:' \
+	  '  make flash PORT=/host-dev/serial/by-id/your-device' \
+	  '  make run BAUD=921600 MONITOR_BAUD=115200' \
+	  '  make erase-app APP_OFFSET=0x10000'
+
+port:
+	@printf 'PORT=%s\nBAUD=%s\nMONITOR_BAUD=%s\n' "$(PORT)" "$(BAUD)" "$(MONITOR_BAUD)"
+
+check-port:
+	@test -e "$(PORT)" || (printf 'Serial port not found: %s\n' "$(PORT)" && exit 1)
+	@printf 'Serial port ready: %s\n' "$(PORT)"
+
+build:
+	$(IDF_PY) build
+
+reconfigure:
+	$(IDF_PY) reconfigure
+
+fullclean:
+	$(IDF_PY) fullclean
+
+clean:
+	$(IDF_PY) clean
+
+flash: check-port
+	$(IDF_PY) -p "$(PORT)" -b $(BAUD) flash
+
+app-flash: check-port
+	$(IDF_PY) -p "$(PORT)" -b $(BAUD) app-flash
+
+bootloader-flash: check-port
+	$(IDF_PY) -p "$(PORT)" -b $(BAUD) bootloader-flash
+
+partition-flash: check-port
+	$(IDF_PY) -p "$(PORT)" -b $(BAUD) partition-table-flash
+
+erase:
+	$(IDF_PY) erase-flash
+
+erase-flash: check-port
+	$(IDF_PY) -p "$(PORT)" erase-flash
+
+monitor: check-port
+	$(IDF_PY) -p "$(PORT)" monitor -b $(MONITOR_BAUD)
+
+log: monitor
+
+flash-monitor: check-port
+	$(IDF_PY) -p "$(PORT)" -b $(BAUD) flash
+	$(IDF_PY) -p "$(PORT)" monitor -b $(MONITOR_BAUD)
+
+run: build flash-monitor
+
+reboot: check-port
+	$(ESPTOOL_PY) --chip esp32c3 -p "$(PORT)" run
+
+erase-app: check-port
+	$(ESPTOOL_PY) --chip esp32c3 -p "$(PORT)" erase_region $(APP_OFFSET) 0x100000
+
+size:
+	$(IDF_PY) size
+
+menuconfig:
+	$(IDF_PY) menuconfig
+
+set-target-c3:
+	$(IDF_PY) set-target esp32c3
+
+doctor:
+	@printf '== ESP32-C3 doctor ==\n'
+	@printf 'PROJECT_DIR=%s\n' "$(PROJECT_DIR)"
+	@printf 'PORT=%s\nBAUD=%s\nMONITOR_BAUD=%s\nAPP_OFFSET=%s\n' "$(PORT)" "$(BAUD)" "$(MONITOR_BAUD)" "$(APP_OFFSET)"
+	@printf '\n[1/6] Check serial port\n'
+	@test -e "$(PORT)" && printf '  OK: serial port exists\n' || (printf '  FAIL: serial port not found\n' && exit 1)
+	@printf '\n[2/6] Check idf.py\n'
+	@$(IDF_PY) --version
+	@printf '\n[3/6] Check esptool\n'
+	@$(ESPTOOL_PY) version
+	@printf '\n[4/6] Check build directory\n'
+	@test -d build && printf '  OK: build directory exists\n' || (printf '  WARN: build directory missing; run make build\n' && exit 1)
+	@printf '\n[5/6] Check key artifacts\n'
+	@test -f build/user_template.bin && printf '  OK: build/user_template.bin\n' || (printf '  FAIL: missing build/user_template.bin\n' && exit 1)
+	@test -f build/bootloader/bootloader.bin && printf '  OK: build/bootloader/bootloader.bin\n' || (printf '  FAIL: missing build/bootloader/bootloader.bin\n' && exit 1)
+	@test -f build/partition_table/partition-table.bin && printf '  OK: build/partition_table/partition-table.bin\n' || (printf '  FAIL: missing build/partition_table/partition-table.bin\n' && exit 1)
+	@printf '\n[6/6] Check flash args\n'
+	@test -f build/flash_args && grep -q -- '--flash_size 4MB' build/flash_args && printf '  OK: flash args set to 4MB\n' || (printf '  FAIL: build/flash_args missing or flash size mismatch\n' && exit 1)
+	@printf '\nMonitor note: flash baud=%s, monitor baud=%s\n' "$(BAUD)" "$(MONITOR_BAUD)"
+	@printf '\nDoctor summary: environment looks ready for build/flash/monitor.\n'

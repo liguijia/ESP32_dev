@@ -1,0 +1,37 @@
+# OS / file manager noise
+.DS_Store
+Thumbs.db
+
+# Editor / IDE local state
+.vscode/
+.idea/
+*.code-workspace
+
+# Local agent/session state
+.sisyphus/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# ESP-IDF generated files
+**/build/
+**/sdkconfig
+**/sdkconfig.old
+**/managed_components/
+**/dependencies.lock
+**/compile_commands.json
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/build.ninja
+**/flasher_args.json
+**/project_description.json
+**/partition_table/
+**/bootloader/
+
+# Common firmware / map artifacts
+*.bin
+*.elf
+*.map
+*.hex
+*.uf2

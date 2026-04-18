@@ -1,0 +1,56 @@
+{
+  "name": "ESP-IDF DevContainer",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind",
+
+  "mounts": [
+    "source=/dev,target=/host-dev,type=bind",
+    "source=${localEnv:USERPROFILE}/.codex,target=/host-home/.codex,type=bind",
+    "source=${localEnv:USERPROFILE}/.claude,target=/host-home/.claude,type=bind",
+    "source=${localEnv:USERPROFILE}/.agents,target=/host-home/.agents,type=bind",
+    "source=${localEnv:USERPROFILE}/.config/opencode,target=/host-home/.config/opencode,type=bind",
+    "source=esp32-dev-opencode-data,target=/root/.local/share/opencode,type=volume",
+    "source=${localEnv:USERPROFILE}/.cache/opencode,target=/host-home/.cache/opencode,type=bind,readonly",
+    "source=${localEnv:USERPROFILE}/.local/share/opencode,target=/host-home/.local/share/opencode,type=bind,readonly"
+  ],
+
+  "runArgs": [
+    "--privileged"
+  ],
+
+  "containerEnv": {
+    "OPENAI_API_KEY": "${localEnv:OPENAI_API_KEY}",
+    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
+    "ANTHROPIC_AUTH_TOKEN": "${localEnv:ANTHROPIC_AUTH_TOKEN}"
+  },
+
+  "updateRemoteUserUID": true,
+  "remoteUser": "root",
+  "overrideCommand": true,
+  "init": true,
+  "userEnvProbe": "none",
+  "shutdownAction": "stopContainer",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "espressif.esp-idf-extension"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.profiles.linux": {
+          "zsh": {
+            "path": "/usr/bin/zsh"
+          }
+        }
+      }
+    }
+  },
+
+  "postCreateCommand": "bash .devcontainer/post-create.sh"
+}
