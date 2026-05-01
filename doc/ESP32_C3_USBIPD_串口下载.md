@@ -9,19 +9,37 @@
 
 ## 1. 你当前识别到的目标设备
 
-从前面的 `usbipd list` 与你后续在容器内确认的结果来看，当前实际可用的串口设备为：
+从前面的 `usbipd list` 与你后续在容器内确认的结果来看，当前实际可用的串口设备可能会变化，但通常优先表现为：
 
 ```text
-/host-dev/serial/by-id/usb-1a86_USB_Single_Serial_5C37267536-if00
+/host-dev/serial/by-id/usb-...-if00
 ```
 
 这说明：
 
 - Windows / WSL / Dev Container 这条链路已经打通
-- 当前可以直接使用稳定的 `by-id` 设备路径进行烧录与日志查看
+- 当前可以优先使用稳定的 `by-id` 设备路径进行烧录与日志查看
 - 相比 `/dev/ttyUSB0` 这类名字，`/host-dev/serial/by-id/...` 更不容易因为重插设备而变化
 
 对于 ESP32-C3，这种写法更稳妥，建议后续优先使用该路径。
+
+当前仓库里的模板与新工程创建脚本已经支持自动串口发现，优先级就是：
+
+1. `/host-dev/serial/by-id/*`
+2. `/dev/serial/by-id/*`
+3. `/host-dev/ttyACM*`
+4. `/host-dev/ttyUSB*`
+5. `/dev/ttyACM*`
+6. `/dev/ttyUSB*`
+
+所以今后通常可以直接先执行：
+
+```bash
+make port
+make run
+```
+
+只有在检测到多个设备时，才需要手动指定 `PORT`。
 
 ## 3. 正确的整体流程
 
@@ -61,39 +79,44 @@ ls /dev/ttyUSB* /dev/ttyACM*
 
 因为你的设备是 CH343，**大概率会是 `ttyUSB0`**，不是 `ttyACM0`。
 
-## 4. 我已经帮你修改了当前 devcontainer
+## 4. 当前 devcontainer 的实际串口接入方式
 
-我已经把当前仓库的：
+当前仓库的：
 
 ```text
 .devcontainer/devcontainer.json
 ```
 
-补上了设备透传配置：
+采用的是：
 
 ```json
+"mounts": [
+  "source=/dev,target=/host-dev,type=bind"
+],
 "runArgs": [
-  "--device=/dev/ttyUSB0:/dev/ttyUSB0",
-  "--device=/dev/ttyUSB1:/dev/ttyUSB1",
-  "--device=/dev/ttyACM0:/dev/ttyACM0",
-  "--device=/dev/ttyACM1:/dev/ttyACM1"
+  "--privileged"
 ]
 ```
 
 这一步的作用是：
 
 - 先让 Windows 把 USB 设备交给 WSL
-- 再让 Dev Container 把 WSL 里的串口设备带进容器
+- 再让 Dev Container 通过 `/host-dev` 访问宿主机 / WSL 中的串口设备
+
+也就是说，当前方案**不是**把固定的 `/dev/ttyUSB0`、`/dev/ttyACM0` 逐个映射进容器，而是：
+
+- 直接把宿主机 `/dev` 绑定到容器内 `/host-dev`
+- 再由模板和脚本优先从 `/host-dev/serial/by-id/*` 自动发现串口
 
 ## 5. 你下一步必须做什么
 
-改完 `devcontainer.json` 后，**必须重建容器**。
+如果你刚修改了 `devcontainer.json`，或者刚完成新的 `usbipd attach` 后串口没有正常出现在容器中，建议**重建容器**。
 
 在 VS Code 里执行：
 
 - `Dev Containers: Rebuild and Reopen in Container`
 
-因为 `--device` 是容器启动参数，不重建不会生效。
+因为 `mounts` / `runArgs` 都属于容器启动参数，重建后最稳妥。
 
 ## 6. 重建后怎么验证
 
@@ -102,13 +125,14 @@ ls /dev/ttyUSB* /dev/ttyACM*
 进入容器后执行：
 
 ```bash
-ls /dev/ttyUSB* /dev/ttyACM*
+ls /host-dev/serial/by-id
+ls /host-dev/ttyUSB* /host-dev/ttyACM*
 ```
 
-如果你的 CH343 已经从 Windows 正确附加到 WSL，并且容器也重建了，那么大概率会看到：
+如果你的设备已经从 Windows 正确附加到 WSL，并且容器链路正常，那么大概率会看到：
 
 ```bash
-/dev/ttyUSB0
+/host-dev/serial/by-id/usb-...-if00
 ```
 
 ### 6.2 进入模板工程
@@ -128,22 +152,30 @@ idf.py build
 优先使用你已经确认好的稳定串口路径：
 
 ```bash
-idf.py -p /host-dev/serial/by-id/usb-1a86_USB_Single_Serial_5C37267536-if00 flash monitor
+idf.py -p /host-dev/serial/by-id/usb-...-if00 flash monitor
 ```
 
 如果后续设备路径发生变化，再回退检查：
 
 - `/host-dev/serial/by-id/`
-- `/dev/ttyUSB0`
-- `/dev/ttyUSB1`
-- `/dev/ttyACM0`
+- `/host-dev/ttyUSB0`
+- `/host-dev/ttyUSB1`
+- `/host-dev/ttyACM0`
+
+也可以直接在模板工程里执行：
+
+```bash
+make port
+```
+
+查看自动探测到的串口和候选设备。
 
 ### 6.5 仅烧录命令
 
 如果你只想烧录，不立即进入串口监视，执行：
 
 ```bash
-idf.py -p /host-dev/serial/by-id/usb-1a86_USB_Single_Serial_5C37267536-if00 flash
+idf.py -p /host-dev/serial/by-id/usb-...-if00 flash
 ```
 
 ### 6.6 仅打开串口日志
@@ -151,7 +183,7 @@ idf.py -p /host-dev/serial/by-id/usb-1a86_USB_Single_Serial_5C37267536-if00 flas
 如果程序已经烧录完成，只想单独看串口输出，执行：
 
 ```bash
-idf.py -p /host-dev/serial/by-id/usb-1a86_USB_Single_Serial_5C37267536-if00 monitor
+idf.py -p /host-dev/serial/by-id/usb-...-if00 monitor
 ```
 
 退出串口监视常用组合键：
@@ -173,7 +205,7 @@ Ctrl + ]
 5. 然后重新执行：
 
 ```bash
-idf.py -p /host-dev/serial/by-id/usb-1a86_USB_Single_Serial_5C37267536-if00 flash
+idf.py -p /host-dev/serial/by-id/usb-...-if00 flash
 ```
 
 ### 7.2 你的当前设备更像传统 USB 转串口
@@ -199,17 +231,18 @@ usbipd attach --wsl --busid 9-2 --auto-attach
 ### 重建 Dev Container 后，在容器里
 
 ```bash
-ls /dev/ttyUSB* /dev/ttyACM*
+ls /host-dev/serial/by-id
 cd /workspaces/ESP32_dev/user_template
+make port
 idf.py build
-idf.py -p /host-dev/serial/by-id/usb-1a86_USB_Single_Serial_5C37267536-if00 flash
-idf.py -p /host-dev/serial/by-id/usb-1a86_USB_Single_Serial_5C37267536-if00 monitor
+idf.py -p /host-dev/serial/by-id/usb-...-if00 flash
+idf.py -p /host-dev/serial/by-id/usb-...-if00 monitor
 ```
 
 或者一步完成：
 
 ```bash
-idf.py -p /host-dev/serial/by-id/usb-1a86_USB_Single_Serial_5C37267536-if00 flash monitor
+idf.py -p /host-dev/serial/by-id/usb-...-if00 flash monitor
 ```
 
 ## 9. 结果判断

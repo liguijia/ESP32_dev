@@ -12,7 +12,7 @@
 ## 当前模板特点
 
 - 默认匹配 **4MB flash**
-- 默认串口路径使用稳定的 `by-id` 设备名
+- 默认优先自动发现稳定的 `by-id` 串口路径
 - 上电后持续输出心跳日志，便于确认系统仍在运行
 - `Makefile` 封装常用构建、烧录、复位、诊断动作
 - 应用基础配置集中在 `main/include/user_template_config.h`
@@ -26,6 +26,8 @@ user_template/
 ├── README.md
 ├── sdkconfig
 ├── sdkconfig.defaults
+├── tools/
+│   └── detect_serial_port.sh
 └── main/
     ├── CMakeLists.txt
     ├── user_template.c
@@ -138,6 +140,33 @@ main/include/user_template_config.h
 - `make erase-flash`：整片 flash 擦除
 - `make doctor`：检查串口、工具链、构建产物、flash 参数
 
+## 自动串口发现
+
+模板默认会优先按下面顺序自动寻找串口：
+
+1. `/host-dev/serial/by-id/*`
+2. `/dev/serial/by-id/*`
+3. `/host-dev/ttyACM*`
+4. `/host-dev/ttyUSB*`
+5. `/dev/ttyACM*`
+6. `/dev/ttyUSB*`
+
+这比较适合当前的 Docker / Dev Container + `usbipd attach` 场景。
+
+你可以先查看自动检测结果：
+
+```bash
+make port
+```
+
+如果检测到唯一设备，`make flash`、`make monitor`、`make run` 会直接使用它。
+
+如果检测到多个设备，模板会停止自动选择，并提示你显式指定 `PORT`，例如：
+
+```bash
+make run PORT=/host-dev/serial/by-id/your-device
+```
+
 ## 复用时的实践建议
 
 - 新项目优先复制整个目录，而不是只拷一个 `main.c`
@@ -145,15 +174,15 @@ main/include/user_template_config.h
 - 每次改完 `sdkconfig.defaults` 后，执行一次 `make reconfigure`
 - 优先保留统一的 `Makefile` 工作流，避免每个项目命令风格都不一样
 
-## 当前默认串口
+## 串口覆盖
 
-当前模板默认使用：
+如果你不想使用自动发现，也可以手动覆盖：
 
 ```text
-/host-dev/serial/by-id/usb-1a86_USB_Single_Serial_5C37267536-if00
+PORT=/host-dev/serial/by-id/your-device
 ```
 
-如果设备变了，可以临时覆盖：
+例如：
 
 ```bash
 make flash PORT=/host-dev/serial/by-id/your-device

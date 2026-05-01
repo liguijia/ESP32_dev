@@ -1,5 +1,7 @@
 PROJECT_DIR := $(CURDIR)
-PORT ?= /host-dev/serial/by-id/usb-1a86_USB_Single_Serial_5C37267536-if00
+SERIAL_PORT_HELPER := $(PROJECT_DIR)/tools/detect_serial_port.sh
+PORT ?= $(shell if [ -x "$(SERIAL_PORT_HELPER)" ]; then "$(SERIAL_PORT_HELPER)" --quiet 2>/dev/null || true; fi)
+PORT_SOURCE ?= $(shell if [ -x "$(SERIAL_PORT_HELPER)" ]; then "$(SERIAL_PORT_HELPER)" --quiet --source 2>/dev/null || true; fi)
 BAUD ?= 460800
 MONITOR_BAUD ?= 115200
 IDF_PY ?= idf.py
@@ -43,8 +45,21 @@ help:
 
 port:
 	@printf 'PORT=%s\nBAUD=%s\nMONITOR_BAUD=%s\n' "$(PORT)" "$(BAUD)" "$(MONITOR_BAUD)"
+	@printf 'PORT_SOURCE=%s\n' "$(PORT_SOURCE)"
+	@if [ -x "$(SERIAL_PORT_HELPER)" ]; then \
+		printf '\nAvailable serial candidates:\n'; \
+		"$(SERIAL_PORT_HELPER)" --list || true; \
+	fi
 
 check-port:
+	@if [ -z "$(PORT)" ]; then \
+		if [ -x "$(SERIAL_PORT_HELPER)" ]; then \
+			"$(SERIAL_PORT_HELPER)"; \
+		else \
+			printf 'Serial port helper missing: %s\n' "$(SERIAL_PORT_HELPER)"; \
+			exit 1; \
+		fi; \
+	fi
 	@test -e "$(PORT)" || (printf 'Serial port not found: %s\n' "$(PORT)" && exit 1)
 	@printf 'Serial port ready: %s\n' "$(PORT)"
 
@@ -107,7 +122,7 @@ set-target-c3:
 doctor:
 	@printf '== ESP32-C3 doctor ==\n'
 	@printf 'PROJECT_DIR=%s\n' "$(PROJECT_DIR)"
-	@printf 'PORT=%s\nBAUD=%s\nMONITOR_BAUD=%s\nAPP_OFFSET=%s\n' "$(PORT)" "$(BAUD)" "$(MONITOR_BAUD)" "$(APP_OFFSET)"
+	@printf 'PORT=%s\nPORT_SOURCE=%s\nBAUD=%s\nMONITOR_BAUD=%s\nAPP_OFFSET=%s\n' "$(PORT)" "$(PORT_SOURCE)" "$(BAUD)" "$(MONITOR_BAUD)" "$(APP_OFFSET)"
 	@printf '\n[1/6] Check serial port\n'
 	@test -e "$(PORT)" && printf '  OK: serial port exists\n' || (printf '  FAIL: serial port not found\n' && exit 1)
 	@printf '\n[2/6] Check idf.py\n'
