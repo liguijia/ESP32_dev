@@ -1,0 +1,10 @@
+CompileFlags:
+  CompilationDatabase: /workspaces/ESP32_dev/user_template/build
+  Add:
+    - -I/workspaces/ESP32_dev/user_template/main
+    - -I/workspaces/ESP32_dev/user_template/main/include
+    - -I/workspaces/ESP32_dev/user_template/build/config
+  Remove:
+    - -fno-shrink-wrap
+    - -fstrict-volatile-bitfields
+    - -fno-tree-switch-conversion

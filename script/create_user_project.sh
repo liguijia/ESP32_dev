@@ -325,6 +325,9 @@ def create_vscode_dir(project_root: Path, chip: str, compiler_path: str, openocd
         "C_Cpp.default.compilerPath": compiler_path,
         "clangd.arguments": [
             "--compile-commands-dir=${workspaceFolder}/build",
+            "--background-index",
+            "--query-driver=/opt/esp/tools/**/riscv32-esp-elf-*",
+            "--query-driver=/opt/esp/tools/**/xtensa-esp-elf-*",
         ],
     }
 
@@ -412,9 +415,26 @@ def create_vscode_dir(project_root: Path, chip: str, compiler_path: str, openocd
     (vscode_dir / "extensions.json").write_text(json.dumps(extensions, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def create_clangd_file(project_root: Path) -> None:
+    clangd_content = (
+        "CompileFlags:\n"
+        f"  CompilationDatabase: {project_root / 'build'}\n"
+        "  Add:\n"
+        f"    - -I{project_root / 'main'}\n"
+        f"    - -I{project_root / 'main' / 'include'}\n"
+        f"    - -I{project_root / 'build' / 'config'}\n"
+        "  Remove:\n"
+        "    - -fno-shrink-wrap\n"
+        "    - -fstrict-volatile-bitfields\n"
+        "    - -fno-tree-switch-conversion\n"
+    )
+    (project_root / ".clangd").write_text(clangd_content, encoding="utf-8")
+
+
 update_makefile(target_dir / "Makefile", target_chip, meta["display"])
 update_readme(target_dir / "README.md", target_chip, meta["display"])
 create_vscode_dir(target_dir, target_chip, meta["compiler"], meta["openocd"], port_mode)
+create_clangd_file(target_dir)
 
 readme_path = target_dir / "README.md"
 if readme_path.exists():
@@ -423,7 +443,7 @@ if readme_path.exists():
         fp.write("## 使用创建脚本后的建议\n\n")
         fp.write(f"- 当前目标芯片：`{target_chip}`\n")
         fp.write(f"- 运行 `cd {target_dir}` 进入工程目录\n")
-        fp.write("- 已自动生成 `.vscode/settings.json`、`launch.json`、`tasks.json`、`extensions.json`\n")
+        fp.write("- 已自动生成 `.vscode/settings.json`、`launch.json`、`tasks.json`、`extensions.json`、`.clangd`\n")
         fp.write(f"- 创建脚本串口策略：`{port_mode}`\n")
         fp.write("- 首次建议执行 `make build` 验证工程与调试配置是否正常\n")
 
