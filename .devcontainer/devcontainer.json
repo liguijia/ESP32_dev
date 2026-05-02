@@ -15,6 +15,7 @@
     "source=${localEnv:USERPROFILE}/.agents,target=/host-home/.agents,type=bind",
     "source=${localEnv:USERPROFILE}/.config/opencode,target=/host-home/.config/opencode,type=bind",
     "source=esp32-dev-opencode-data,target=/root/.local/share/opencode,type=volume",
+    "source=esp32-dev-opencode-cache,target=/root/.cache/opencode,type=volume",
     "source=${localEnv:USERPROFILE}/.cache/opencode,target=/host-home/.cache/opencode,type=bind,readonly",
     "source=${localEnv:USERPROFILE}/.local/share/opencode,target=/host-home/.local/share/opencode,type=bind,readonly"
   ],

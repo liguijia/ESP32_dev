@@ -28,10 +28,46 @@ mkdir -p \
 [ -d /host-home/.codex ] && ln -snf /host-home/.codex "$HOME/.codex" || true
 [ -d /host-home/.claude ] && ln -snf /host-home/.claude "$HOME/.claude" || true
 [ -d /host-home/.agents ] && ln -snf /host-home/.agents "$HOME/.agents" || true
-[ -d /host-home/.config/opencode ] && ln -snf /host-home/.config/opencode "$HOME/.config/opencode" || true
+# OpenCode: 选择性链接配置文件（跳过 node_modules，避免 Windows 原生二进制不兼容）
+if [ -d /host-home/.config/opencode ]; then
+  # 移除之前的 blanket symlink（如果是从旧版脚本创建的）
+  if [ -L "$HOME/.config/opencode" ]; then
+    rm -f "$HOME/.config/opencode"
+  fi
 
-if [ -d /host-home/.cache/opencode ]; then
-  cp -R /host-home/.cache/opencode/. "$HOME/.cache/opencode/" 2>/dev/null || true
+  # 确保容器配置目录是真实目录
+  mkdir -p "$HOME/.config/opencode"
+
+  # 逐个 symlink 配置文件（写入会同步回 Windows 主机）
+  for f in opencode.json oh-my-openagent.json; do
+    if [ -f "/host-home/.config/opencode/$f" ]; then
+      ln -snf "/host-home/.config/opencode/$f" "$HOME/.config/opencode/$f"
+    fi
+  done
+
+  # symlink 配置目录（排除 node_modules，避免跨平台二进制不兼容）
+  for dir in agents commands modes plugins skills tools themes; do
+    if [ -d "/host-home/.config/opencode/$dir" ]; then
+      [ -e "$HOME/.config/opencode/$dir" ] && rm -rf "$HOME/.config/opencode/$dir"
+      ln -snf "/host-home/.config/opencode/$dir" "$HOME/.config/opencode/$dir"
+    fi
+  done
+
+  # 移除不兼容的 Windows node_modules
+  if [ -d "$HOME/.config/opencode/node_modules" ]; then
+    rm -rf "$HOME/.config/opencode/node_modules"
+    rm -f "$HOME/.config/opencode/package.json" "$HOME/.config/opencode/package-lock.json" 2>/dev/null || true
+  fi
+
+  # 为 Linux 容器重新安装插件
+  if command -v opencode &>/dev/null; then
+    echo "[post-create] Installing opencode plugin: oh-my-openagent@latest"
+    if ! opencode plugin install oh-my-openagent@latest; then
+      echo "[post-create] WARNING: opencode plugin install failed. Plugin-dependent features may not work." >&2
+    fi
+  else
+    echo "[post-create] WARNING: opencode CLI not found in PATH. Plugins will not be installed." >&2
+  fi
 fi
 
 if [ -f /host-home/.local/share/opencode/auth.json ] && [ ! -f "$HOME/.local/share/opencode/auth.json" ]; then
